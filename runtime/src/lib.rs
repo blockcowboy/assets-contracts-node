@@ -238,6 +238,13 @@ const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
     cumulus_primitives_core::relay_chain::MAX_POV_SIZE as u64,
 );
 
+// Prints debug output of the `contracts` pallet to stdout if the node is
+// started with `-lruntime::contracts=debug`.
+const CONTRACTS_DEBUG_OUTPUT: pallet_contracts::DebugInfo =
+	pallet_contracts::DebugInfo::UnsafeDebug;
+const CONTRACTS_EVENTS: pallet_contracts::CollectEvents =
+	pallet_contracts::CollectEvents::UnsafeCollect;
+
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
@@ -512,7 +519,7 @@ impl pallet_collator_selection::Config for Runtime {
 impl pallet_parachain_template::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
 }
-
+/* 
 impl ContractsApi<Block, AccountId, Balance, BlockNumber, Hash, EventRecord> for Runtime {
     fn call(
         origin: AccountId,
@@ -576,6 +583,7 @@ impl ContractsApi<Block, AccountId, Balance, BlockNumber, Hash, EventRecord> for
         Contracts::get_storage(address, key)
     }
 }
+*/
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
 
@@ -842,6 +850,73 @@ impl_runtime_apis! {
             Ok(batches)
         }
     }
+
+    impl pallet_contracts::ContractsApi<Block, AccountId, Balance, BlockNumber, Hash, EventRecord>
+    for Runtime
+    { 
+        fn call(
+        origin: AccountId,
+        dest: AccountId,
+        value: Balance,
+        gas_limit: Option<Weight>,
+        storage_deposit_limit: Option<Balance>,
+        input_data: Vec<u8>,
+    ) -> pallet_contracts_primitives::ContractExecResult<Balance, EventRecord> {
+        let gas_limit = gas_limit.unwrap_or(RuntimeBlockWeights::get().max_block);
+        Contracts::bare_call(
+            origin,
+            dest,
+            value,
+            gas_limit,
+            storage_deposit_limit,
+            input_data,
+            CONTRACTS_DEBUG_OUTPUT,
+            CONTRACTS_EVENTS,
+            pallet_contracts::Determinism::Enforced,
+        )
+    }
+
+    fn instantiate(
+        origin: AccountId,
+        value: Balance,
+        gas_limit: Option<Weight>,
+        storage_deposit_limit: Option<Balance>,
+        code: pallet_contracts_primitives::Code<Hash>,
+        data: Vec<u8>,
+        salt: Vec<u8>,
+    ) -> pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance, EventRecord>
+    {
+        let gas_limit = gas_limit.unwrap_or(RuntimeBlockWeights::get().max_block);
+        Contracts::bare_instantiate(
+            origin,
+            value,
+            gas_limit,
+            storage_deposit_limit,
+            code,
+            data,
+            salt,
+            CONTRACTS_DEBUG_OUTPUT,
+            CONTRACTS_EVENTS,
+        )
+    }
+
+    fn upload_code(
+        origin: AccountId,
+        code: Vec<u8>,
+        storage_deposit_limit: Option<Balance>,
+        determinism: pallet_contracts::Determinism,
+    ) -> pallet_contracts_primitives::CodeUploadResult<Hash, Balance>
+    {
+        Contracts::bare_upload_code(origin, code, storage_deposit_limit, determinism)
+    }
+
+    fn get_storage(
+        address: AccountId,
+        key: Vec<u8>,
+    ) -> pallet_contracts_primitives::GetStorageResult {
+        Contracts::get_storage(address, key)
+    }
+}
 }
 
 struct CheckInherents;
